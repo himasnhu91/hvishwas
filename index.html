@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HVISHWAS NEWS</title>
+    <script src="https://cdn.jsdelivr.net/npm/@xenova/transformers"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css">
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+        .news-image {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            border-radius: 10px;
+        }
+        .news-item {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .active-category {
+            border-bottom: 3px solid yellow;
+            font-weight: bold;
+            color: yellow;
+        }
+        .clock {
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .logo {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            object-fit: cover;
+            display: block;
+            margin: 0 auto;
+        }
+        .fixed-btn {
+            position: fixed;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 1000px;
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 5px;
+            text-align: center;
+            cursor: pointer;
+            z-index: 1000;
+        }
+
+        .fixed-btn:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="bg-blue-900 text-white text-center py-4 text-2xl font-bold">
+        <img src="https://i.fbcd.co/products/resized/resized-750-500/hv-unique-design-logo-2-f3f86093ae1b1fcfb654465e1cbb666906d3b3e8880dd120eecca453c993c7be.jpg" alt="Logo" class="logo">
+        HIMANSHU VISHWAS NEWS <span id="live-clock" class="clock ml-4"></span>
+    </div>
+    <div class="bg-blue-700 text-white text-center py-2">
+        <button onclick="setActiveCategory(this, 'general')" class="px-4 cursor-pointer">World News</button>
+        <button onclick="setActiveCategory(this, 'entertainment')" class="px-4 cursor-pointer">Entertainment</button>
+        <button onclick="setActiveCategory(this, 'sports')" class="px-4 cursor-pointer">Sports</button>
+        <button onclick="setActiveCategory(this, 'technology')" class="px-4 cursor-pointer">Technology</button>
+        <button onclick="setActiveCategory(this, 'business')" class="px-4 cursor-pointer">Business</button>
+    </div>
+    <div id="news-container" class="max-w-5xl mx-auto mt-6 p-6 bg-white rounded-lg shadow-lg">
+        <p class="text-center text-gray-600">Loading latest news...</p>
+    </div>
+    <button class="fixed-btn" onclick="fetchNews()">Fetch Latest News</button>
+
+    <script>
+        function updateClock() {
+            const now = new Date();
+            document.getElementById("live-clock").textContent = now.toLocaleTimeString();
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        function setActiveCategory(button, category) {
+            document.querySelectorAll(".bg-blue-700 button").forEach(btn => btn.classList.remove("active-category"));
+            button.classList.add("active-category");
+            fetchNews(category);
+        }
+
+        async function fetchNews(category = 'general') {
+            try {
+                const timestamp = new Date().getTime();
+                const apiUrls = [
+                    `https://gnews.io/api/v4/top-headlines?token=83831c452d7f861e4c6d6594d87254f0&category=${category}&max=50&_=${timestamp}`,
+                    `https://api.mediastack.com/v1/news?access_key=984cb3676d312b556d5070fd44ec5526&categories=${category}&limit=50&_=${timestamp}`,
+                    `https://api.currentsapi.services/v1/latest-news?apiKey=mDbOWNVjNG5I-5RIKF4kcykYqo4TT5-TVj5ZIOEK6U4lSkew&category=${category}&_=${timestamp}`
+                ];
+
+                const responses = await Promise.all(apiUrls.map(url => fetch(url, { cache: 'no-store' }).then(res => res.json())));
+
+                let allArticles = [];
+                responses.forEach(data => {
+                    console.log("Fetched data:", data);
+                    if (data.articles) {
+                        allArticles = allArticles.concat(data.articles);
+                    } else if (data.data) {
+                        allArticles = allArticles.concat(data.data);
+                    } else if (data.news) {
+                        allArticles = allArticles.concat(data.news);
+                    }
+                });
+
+                const uniqueArticles = Array.from(new Map(allArticles.map(article => [article.title, article])).values());
+                uniqueArticles.sort((a, b) => new Date(b.publishedAt || b.date) - new Date(a.publishedAt || a.date));
+
+                const newsContainer = document.getElementById("news-container");
+                if (uniqueArticles.length > 0) {
+                    newsContainer.innerHTML = "";
+                    uniqueArticles.forEach(article => {
+                        const articleElement = document.createElement("div");
+                        articleElement.classList.add("news-item", "p-4", "border-b", "border-gray-300");
+                        articleElement.innerHTML = `
+                            ${article.image ? `<img class="news-image" src="${article.image}" alt="News Image">` : ''}
+                            <div class="text-xl font-bold">${article.title}</div>
+                            <div class="text-gray-600">${article.description || "No description available."}</div>
+                            <div class="text-sm text-gray-500">Published at: ${new Date(article.publishedAt || article.date).toLocaleString()}</div>
+                            <a class="text-blue-500 font-bold" href="${article.url}" target="_blank">Read More</a>
+                        `;
+                        newsContainer.appendChild(articleElement);
+                    });
+                } else {
+                    newsContainer.innerHTML = "<p class='text-center text-gray-600'>No news available.</p>";
+                }
+            } catch (error) {
+                console.error("Error fetching news:", error);
+                document.getElementById("news-container").innerHTML = "<p class='text-center text-red-500'>Error loading news.</p>";
+            }
+        }
+
+        window.onload = () => {
+            fetchNews('general');
+            setInterval(() => fetchNews('general'), 60000);
+        };
+    </script>
+</body>
+</html>
